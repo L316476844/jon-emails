@@ -1,5 +1,8 @@
 package org.jon.lv.email.receive.imap;
 
+import com.sun.mail.util.MailSSLSocketFactory;
+
+import java.security.GeneralSecurityException;
 import java.util.Properties;
 
 /**
@@ -24,9 +27,18 @@ public enum HostType {
         @Override
         public Properties getProperties() {
             Properties defaults = new Properties();
-            defaults.put("mail.pop3.host", "pop.exmail.qq.com");
-            defaults.put("mail.imap.host", "imap.exmail.qq.com");
+            defaults.put("mail.pop3.host", "pop.qq.com");
+            defaults.put("mail.imap.host", "imap.qq.com");
             defaults.put("mail.store.protocol", "pop3"); // 默认使用pop3收取邮件
+            try {
+                MailSSLSocketFactory sf = new MailSSLSocketFactory();
+                sf.setTrustAllHosts(true);
+                defaults.put("mail.pop3.ssl.enable", "true");
+                defaults.put("mail.pop3.ssl.socketFactory", sf);
+            } catch (GeneralSecurityException e) {
+                e.printStackTrace();
+            }
+
             return defaults;
         }
     },
