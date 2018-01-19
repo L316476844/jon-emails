@@ -10,16 +10,20 @@ import org.jon.lv.result.ResultDO;
 import org.jon.lv.verify.ValidateHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 
 import javax.activation.URLDataSource;
+import javax.mail.Address;
+import javax.mail.MessagingException;
+import javax.mail.SendFailedException;
 import javax.mail.internet.MimeMessage;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.GeneralSecurityException;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * @Description: EmailService 可使用spring xml声明亦可以通过工厂方式调用
@@ -75,10 +79,11 @@ public class EmailServiceImpl implements EmailService {
 
     private String sendMail(JavaMailSenderImpl javaMailSender, Email email, String fromMail){
         MimeMessage mailMessage = javaMailSender.createMimeMessage();
+        MimeMessageHelper  messageHelper = null;
         try {
-
             Properties prop = new Properties();
-            prop.put("mail.smtp.auth", mailSmtpAuth); // 设为true，服务器进行认证
+            // 设为true，服务器进行认证
+            prop.put("mail.smtp.auth", mailSmtpAuth);
             prop.put("mail.smtp.timeout", mailSmtpTimeout);
             if(fromMail.endsWith("qq.com")){
                 // qq 服务器需要ssl
@@ -92,7 +97,7 @@ public class EmailServiceImpl implements EmailService {
             }
             javaMailSender.setJavaMailProperties(prop);
 
-            MimeMessageHelper  messageHelper = new MimeMessageHelper(mailMessage, true, email.getEncoding());
+            messageHelper = new MimeMessageHelper(mailMessage, true, email.getEncoding());
             messageHelper.setFrom(fromMail);
             messageHelper.setTo(email.getToEmails());
             if(!ValidateHelper.isEmpty(email.getCcEmails())){
@@ -116,6 +121,28 @@ public class EmailServiceImpl implements EmailService {
             }
 
             javaMailSender.send(mailMessage);
+        } catch (MailSendException e) {
+            Collection ex = e.getFailedMessages().values();
+            if (ex != null && ex.size() > 0) {
+                for (Object item : ex) {
+                    if (item instanceof SendFailedException) {
+                        SendFailedException sendFailedException = (SendFailedException) item;
+                        List<Address> addresses = Arrays.asList(sendFailedException.getValidUnsentAddresses());
+                        List<String> list = new ArrayList<>();
+                        for (Address address : addresses) {
+                            list.add(address.toString());
+                        }
+                        try {
+                            messageHelper.setTo(list.toArray(new String[list.size()]));
+                        } catch (MessagingException e1) {
+                            // log.info("发送邮件存在无效邮箱重新发送：[{}]", list.toString());
+                            e1.printStackTrace();
+                        }
+                        javaMailSender.send(mailMessage);
+                    }
+                }
+            }
+
         } catch (Exception e) {
             return e.getMessage();
         }
